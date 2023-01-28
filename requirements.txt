@@ -1,0 +1,5 @@
+# pip requirements
+# install via
+#   python -m pip install -r requirements.txt
+markdown # used for generating HTML from markdown
+atlassian-python-api # for writing to confluence

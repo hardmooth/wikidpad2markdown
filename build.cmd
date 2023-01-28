@@ -1,0 +1,1 @@
+python wikidpad2markdown.py --wikidpad=_sample_pages/*.wiki --out=out --verify=_sample_pages --strict
