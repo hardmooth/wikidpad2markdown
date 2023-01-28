@@ -10,7 +10,7 @@ As it is not actively developed since 2018 this script helps to migrate to other
 
 To transform your wikidpad pages to markdown, run it like:
 
-    python wikidpad2markdown --wikidpad=<path_to_pages>/*.wiki --out=<markdown_out>
+    python wikidpad2markdown.py --wikidpad=<path_to_pages>/*.wiki --out=<markdown_out>
 
 other options are:
 
