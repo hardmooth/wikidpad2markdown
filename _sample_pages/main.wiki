@@ -3,12 +3,12 @@
 [/Basteln]
 
 anchor: top
-[Projekte]!next
+[main]!next
 
 +++ h3 heading
 anchor: next
 
-[Projekte]!top
+[main]!top
 
 ++++ h4 heading
 

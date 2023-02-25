@@ -3,12 +3,12 @@
 [/Basteln]
 
 <a name="top"></a>
-[main#next](#next)
+[main#next]
 
 ### h3 heading
 <a name="next"></a>
 
-[main#top](top)
+[main#top]
 
 #### h4 heading
 
@@ -24,24 +24,23 @@
    1. with
    2. sub-items
  201. list
-    * and 
-    * some
-    * mixed
+   * and
+   * some
+   * mixed
 
-h3. Character Formatting
+### Character Formatting
 
 Some *bold* text.
 Some _italic_ text.
 
-+++ horizontal lines
+### horizontal lines
 
 horizontal
-----
+---
 line
 
-+++ tables
+### tables
 
 | row 1 | cell | cell | cell |
-| --- | --- | --- | ---- |
 | row 2 | cell | cell | cell |
 

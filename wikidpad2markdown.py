@@ -10,8 +10,10 @@ import difflib
 import glob
 import logging
 import os
+import re
 import sys
 import traceback
+from itertools import zip_longest
 from optparse import OptionParser
 
 # -- pip ---
@@ -29,6 +31,7 @@ except ImportError:
     confluence = None
 
 # -- local imports ---
+from diffhelper import better_diff
 
 EXIT_OK                = 0
 EXIT_BAD_PARAMETERS    = 1
@@ -62,10 +65,11 @@ def loggingSetup( log_file, print_to_stdout = True):
 _CONFLUENCE_CONNECTION = None
 def ParseOptions( options = None, args = None, **kwargs):
     parser = OptionParser()
-    parser.add_option("-w", "--wikidpad", dest="wikidpad_files", help="Input Wikidpad files (may be globular expression)")
+    parser.add_option("-w", "--wikidpad", dest="wikidpad_files", help="Input Wikidpad files (may be globular expression)", default="_sample_pages/*.wiki")
     parser.add_option("-o", "--out",      dest="output_dir",    help="Output directory for generated Markdown files", default="out")
 
-    parser.add_option("-V", "--verify", dest="verify", action="store", default=None, help="Verify created Markdown files against those in the given directly (for each'file.wiki' there must be 'file.md'")
+    # TODO: set to None
+    parser.add_option("-V", "--verify", dest="verify", action="store", default="_sample_pages", help="Verify created Markdown files against those in the given directly (for each'file.wiki' there must be 'file.md'")
 
     parser.add_option("--confluence-url", dest="ConfluenceURL", action="store", help = "Confluence upload: URL of confluence cloud instance")
     parser.add_option("--confluence-space", dest="ConfluenceSpace", action="store", help = "Confluence upload: Space Key")
@@ -73,7 +77,8 @@ def ParseOptions( options = None, args = None, **kwargs):
     parser.add_option("--confluence-parent-id", dest="ConfluenceParentID", action="store", help="Confluence upload: (optional) ID of parent page")
     parser.add_option("--confluence-token", dest="ConfluenceAPIToken", action="store", help = "Confluence upload: Confluence API Token")
 
-    parser.add_option("-s", "--strict", dest="Strict", action="store_true", default=False, help="Abort on the first error (or keep going?).")
+    # TODO: disable
+    parser.add_option("-s", "--strict", dest="Strict", action="store_true", default=True, help="Abort on the first error (or keep going?).")
 
     ##################################################################################
     # adapt set parameters according to passed arguments, e.g. when used as a module #
@@ -109,8 +114,113 @@ def ParseOptions( options = None, args = None, **kwargs):
 
     return options, args
 
-def Wikidpad2Markdown( wiki_source):
-    return wiki_source
+def diff_texts(text1, text2, title1 = "A", title2 = "B", skip_equal = True, ignore_whitespacing = False):
+    lines1 = text1.splitlines() if isinstance( text1, str) else text1
+    lines2 = text2.splitlines() if isinstance( text2, str) else text2
+
+    # Ignore changes in whitespacing
+    def reduce_whitespaces(line):
+        return ' '.join(line.split())
+    
+    if ignore_whitespacing:
+        lines1 = list(map(reduce_whitespaces, lines1))
+        lines2 = list(map(reduce_whitespaces, lines2))
+
+    differ = difflib.Differ()
+    diff = list(differ.compare(lines1, lines2))
+    
+    max_len = max(len(line) for line in lines1+lines2)
+    column_width = max(max_len + 3, 20)
+    
+    result = []
+    left_line_num = 1
+    right_line_num = 1
+    left_lines = []
+    right_lines = []
+    
+    for i, line in enumerate(diff):
+        line = line.rstrip()
+        if line.startswith('+ '):
+            right_lines.append(f"{right_line_num:3}: {line[2:]:<{column_width}}")
+            right_line_num += 1
+        elif line.startswith('- '):
+            left_lines.append(f"{left_line_num:3}: {line[2:]:<{column_width}}")
+            left_line_num += 1
+        elif line.startswith('  '):
+            if not skip_equal:
+                left_lines.append(f"{left_line_num:3}: {line[2:]:<{column_width}}")
+                right_lines.append(f"   {'':<{column_width}}| {line[2:]:<{column_width}}")
+            left_line_num += 1
+            right_line_num += 1
+    
+    # pad with 5 chars for column prefix (line number and spaces)
+    column_width += 5
+    
+    if left_lines or right_lines:
+        # add title and separator 
+        left_lines  = [ f"{title1:<{column_width}}", "-"*(column_width)] + left_lines 
+        right_lines = [ f"{title2:<{column_width}}", "-"*(column_width)] + right_lines
+
+    for left_line, right_line in zip_longest(left_lines, right_lines, fillvalue=' '*column_width):
+        result.append(f"{left_line} | {right_line}")
+    
+    return '\n'.join(result)
+
+
+def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
+    """Converts Wikidpad to Markdown syntax.
+    Generated from conversation with ChatGPT
+
+    Args:
+        wiki_source (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # Replace headings
+    markdown_text = re.sub(r"^(\++)\s*(.+)$", lambda match: "#" * len(match.group(1)) + " " + match.group(2), wiki_source, flags=re.MULTILINE)
+
+    # Replace bold and italic text
+    markdown_text = re.sub(r'\*\*(.*?)\*\*', r'**\1**', markdown_text)
+    markdown_text = re.sub(r'//(.*?)//', r'_\1_', markdown_text)
+
+    # Replace anchors
+    markdown_text = re.sub(r'anchor:\s*(\S+)', r'<a name="\1"></a>', markdown_text) # "anchor: something" -> '<a name="something"></a>
+    markdown_text = re.sub(r'\[(.*?)\]\!(\S+)', r'[\1#\2]', markdown_text)      # [address]!anchor -> [address#anchor]
+
+    # Replace links
+    markdown_text = re.sub(r'\[([^#]*?)\|(.*?)\]', r'[\2](\1)', markdown_text) # [address|title] -> [address](title)
+    markdown_text = re.sub(r'\[([^#]*?)\]',     r'[\1]',     markdown_text) # [address] -> [adress] - skip the above 
+
+    # Replace bullet points
+    markdown_text = re.sub(r'^(\*+)\s+(.*)$', r'\1 \2', markdown_text, flags=re.MULTILINE)
+
+    # Replace ordered and unordered lists
+    ##markdown_text = re.sub(r"^\s*\* (.+)$", r"* \1", markdown_text, flags=re.MULTILINE)
+    ##markdown_text = re.sub(r"^\s*\d+\. (.+)$", r"1. \1", markdown_text, flags=re.MULTILINE)
+    ##markdown_text = re.sub(r"^\s+[\*\d]", lambda match: " " * 4 + match.group(0), markdown_text, flags=re.MULTILINE)
+    markdown_text = re.sub(r"^(\s+)([\*\d])", lambda match: " " * (2 * len(match.group(1))//4 - 1) + match.group(2), markdown_text, flags=re.MULTILINE)
+
+    # Replace horizontal lines
+    markdown_text = re.sub(r'^----+$', r'---', markdown_text, flags=re.MULTILINE)
+
+    # Replace tables
+    markdown_text = re.sub(r"^(<<\|\s*|>>\s*)\n", r"", markdown_text, flags = re.MULTILINE) # table frame <<| and >>
+    markdown_text = re.sub(r"^(.*\|.*\|.*)$", lambda match: "| " + " | ".join( elem.strip() for elem in match.group(0).split("|")) + " |", markdown_text, flags = re.MULTILINE)    
+
+    # Remove any remaining WikidPad syntax
+    if remove_remaining_wikidpad:
+        markdown_text = re.sub(r'^\s*\*\s*\d+\s*', '', markdown_text, flags=re.MULTILINE)
+        markdown_text = re.sub(r'anchor:', '', markdown_text)
+        markdown_text = re.sub(r'\[.*?\]', '', markdown_text)
+    
+    # Remove any remaining leading or trailing white space
+    markdown_text = markdown_text.strip()
+
+    # Replace any remaining carriage returns with line breaks
+    markdown_text = markdown_text.replace('\r\n', '\n')
+
+    return markdown_text
 
 def WriteConfluencePage( space, title, parent_id = None, overwrite = True, body_markdown = ""):
     """Writes a confluence page
@@ -172,7 +282,7 @@ def RunMain( options = None,
         with open( _file, "r", encoding = "utf8") as fh:
             wiki_content = fh.read()
 
-        markdown_content = Wikidpad2Markdown( wiki_content)
+        markdown_content = Wikidpad2Markdown( wiki_content, remove_remaining_wikidpad=False)
 
         fname = os.path.basename( _file)
         title = fname.rstrip(".wiki")
@@ -185,13 +295,22 @@ def RunMain( options = None,
         if options.verify:
             verify_path = _file.rstrip(".wiki") + ".md"
             with open( verify_path, "r", encoding = "utf8") as fh_verify:
-                verify_content = fh_verify.readlines()
+                verify_content = fh_verify.read().splitlines()
             if os.path.exists( verify_path):
-                _diff = list(difflib.unified_diff( a = markdown_content.splitlines(), b = verify_content, fromfile = target_path, tofile = verify_path))
-                diff_count = len([ diff_line for diff_line in _diff if diff_line.startswith("+") or diff_line.startswith("-")])
+                _diff = better_diff( 
+                    left = verify_content, 
+                    right = markdown_content.splitlines(), 
+                    as_string=True, 
+                    separator=" | ", 
+                    skip_equal=True,
+                    skip_whitespace_changes=True,
+                    left_title= "verification (expected)", 
+                    right_title="converted (obtained)")
+                diff_count = len( _diff.splitlines())
+
                 if _diff:
                     logging.warning("Conversion for %s differs from %s on %s lines", target_path, verify_path, diff_count)
-                    logging.warning("\n".join( line.rstrip() for line in _diff))
+                    print(_diff)
                     if options.Strict:
                         logging.error("Strict mode. Stopping after failed conversion / verification.")
                         sys.exit(EXIT_CRITICAL)
