@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-script to migrated from wikidpad to markdown (and possibly upload to confluence)
+script to migrate from wikidpad to markdown (and possibly upload to confluence)
 @copyright:   Hartmut Leister, 2023, all rights reserved
 @author: Hartmut Leister <hartmut.leister@gmail.com>
 """
@@ -68,8 +68,8 @@ def ParseOptions( options = None, args = None, **kwargs):
     parser.add_option("-w", "--wikidpad", dest="wikidpad_files", help="Input Wikidpad files (may be globular expression)", default="_sample_pages/*.wiki")
     parser.add_option("-o", "--out",      dest="output_dir",    help="Output directory for generated Markdown files", default="out")
 
-    # TODO: set to None
-    parser.add_option("-V", "--verify", dest="verify", action="store", default="_sample_pages", help="Verify created Markdown files against those in the given directly (for each'file.wiki' there must be 'file.md'")
+    parser.add_option("-V", "--verify", dest="verify", action="store", default=None, help="Verify created Markdown files against those in the given directly (for each'file.wiki' there must be 'file.md'")
+    parser.add_option("-R", "--render", dest="render", action="store_true", default="False", help="Render transformed files to HTML as well.")
 
     parser.add_option("--confluence-url", dest="ConfluenceURL", action="store", help = "Confluence upload: URL of confluence cloud instance")
     parser.add_option("--confluence-space", dest="ConfluenceSpace", action="store", help = "Confluence upload: Space Key")
@@ -100,8 +100,9 @@ def ParseOptions( options = None, args = None, **kwargs):
     ###################################
     # check some options for validity #
     ###################################
-    if markdown is None:
+    if markdown is None and options.render:
         logging.warning( "'markdown' package is not installed. Generating HTML from markdown will fail ")
+
 
     if any( [options.ConfluenceURL, options.ConfluenceSpace, options.ConfluenceUser, options.ConfluenceAPIToken, ]):
         _CONFLUENCE_CONNECTION = confluence.Confluence(
@@ -177,6 +178,17 @@ def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
     Returns:
         _type_: _description_
     """
+    def table_add_header( table_block_match):
+        table_source = table_block_match.group(0)
+        rows = table_source.splitlines()
+        first_row = rows[0]
+        col_count = rows[0].count("|") - 1
+        return "\n".join([
+            first_row,
+            "| -- " * col_count + "|",
+            ] + rows[1:])
+
+
     # Replace headings
     markdown_text = re.sub(r"^(\++)\s*(.+)$", lambda match: "#" * len(match.group(1)) + " " + match.group(2), wiki_source, flags=re.MULTILINE)
 
@@ -206,7 +218,9 @@ def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
 
     # Replace tables
     markdown_text = re.sub(r"^(<<\|\s*|>>\s*)\n", r"", markdown_text, flags = re.MULTILINE) # table frame <<| and >>
-    markdown_text = re.sub(r"^(.*\|.*\|.*)$", lambda match: "| " + " | ".join( elem.strip() for elem in match.group(0).split("|")) + " |", markdown_text, flags = re.MULTILINE)    
+    markdown_text = re.sub(r"^(.*\|.*\|.*)$", lambda match: "| " + " | ".join( elem.strip() for elem in match.group(0).split("|")) + " |", markdown_text, flags = re.MULTILINE) # cell delimiters: | elem1 | elem2 |
+    markdown_text = re.sub(r"(^\|.*\|\r?\n)+", table_add_header, markdown_text, flags = re.M) # add the colspec line to a line block
+
 
     # Remove any remaining WikidPad syntax
     if remove_remaining_wikidpad:
@@ -282,8 +296,10 @@ def RunMain( options = None,
         with open( _file, "r", encoding = "utf8") as fh:
             wiki_content = fh.read()
 
+        # transform wikidpad -> Markdown
         markdown_content = Wikidpad2Markdown( wiki_content, remove_remaining_wikidpad=False)
 
+        # write out file
         fname = os.path.basename( _file)
         title = fname.rstrip(".wiki")
         target_path = os.path.join( options.output_dir, f"{title}.md")
@@ -292,6 +308,7 @@ def RunMain( options = None,
             fh_out.write( markdown_content)
         logging.info("%s -> %s", _file, target_path)
         
+        # verify
         if options.verify:
             verify_path = _file.rstrip(".wiki") + ".md"
             with open( verify_path, "r", encoding = "utf8") as fh_verify:
@@ -314,6 +331,15 @@ def RunMain( options = None,
                     if options.Strict:
                         logging.error("Strict mode. Stopping after failed conversion / verification.")
                         sys.exit(EXIT_CRITICAL)
+        # render to HTML
+        if options.render:
+            rendered_html = markdown.markdown( markdown_content)
+            target_path_html = os.path.join( options.output_dir, f"{title}.html")
+            with open( target_path_html, "w", encoding = "utf8") as html_out:
+                html_out.write( rendered_html)
+            logging.info("%s -> %s", _file, target_path_html)
+
+        # write to confluence
         if options.ConfluenceURL:
             page_url = WriteConfluencePage( 
                 space = options.ConfluenceSpace, 
@@ -334,7 +360,13 @@ if __name__ == '__main__':
     logging.info("=" * 40)
     logging.info("Working in %s", os.getcwd())
     try:
-        RunMain()
+        if True:
+            RunMain( 
+                verify = "_sample_pages",
+                render  = True,
+            )
+        else:
+            RunMain()
     except Exception as exc:
         logging.exception( "UNCAUGHT EXCEPTION")
         traceback.print_exc()

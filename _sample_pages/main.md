@@ -13,20 +13,18 @@
 #### h4 heading
 
 ### Lists
-
  * some
  * bullet
    * list
-
  1. and
  3. some
  10. ordered
-   1. with
-   2. sub-items
+     1. with
+     2. sub-items
  201. list
-   * and
-   * some
-   * mixed
+      * and
+      * some
+      * mixed
 
 ### Character Formatting
 
@@ -42,5 +40,5 @@ line
 ### tables
 
 | row 1 | cell | cell | cell |
+| -- | -- | -- | -- |
 | row 2 | cell | cell | cell |
-
