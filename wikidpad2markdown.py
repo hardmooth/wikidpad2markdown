@@ -30,6 +30,14 @@ try:
 except ImportError:
     confluence = None
 
+try:
+    import mistune
+    from md2cf.confluence_renderer import ConfluenceRenderer
+except ImportError:
+    mistune = None
+    ConfluenceRenderer = None
+
+
 # -- local imports ---
 from diffhelper import better_diff
 
@@ -64,6 +72,8 @@ def loggingSetup( log_file, print_to_stdout = True):
 
 _CONFLUENCE_CONNECTION = None
 def ParseOptions( options = None, args = None, **kwargs):
+    global _CONFLUENCE_CONNECTION
+
     parser = OptionParser()
     parser.add_option("-w", "--wikidpad", dest="wikidpad_files", help="Input Wikidpad files (may be globular expression)", default="_sample_pages/*.wiki")
     parser.add_option("-o", "--out",      dest="output_dir",    help="Output directory for generated Markdown files", default="out")
@@ -111,6 +121,10 @@ def ParseOptions( options = None, args = None, **kwargs):
             password=options.ConfluenceAPIToken,
             cloud=True
         )
+        logging.info("Confluence upload mode enabled. Connecting to %s: %s", options.ConfluenceURL, _CONFLUENCE_CONNECTION)
+
+        if mistune is None or ConfluenceRenderer is None:
+            logging.warning("'md2cf' package is missing. Correct Confluence output can't be guaranteed")
 
 
     return options, args
@@ -219,7 +233,9 @@ def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
     # Replace tables
     markdown_text = re.sub(r"^(<<\|\s*|>>\s*)\n", r"", markdown_text, flags = re.MULTILINE) # table frame <<| and >>
     markdown_text = re.sub(r"^(.*\|.*\|.*)$", lambda match: "| " + " | ".join( elem.strip() for elem in match.group(0).split("|")) + " |", markdown_text, flags = re.MULTILINE) # cell delimiters: | elem1 | elem2 |
-    markdown_text = re.sub(r"(^\|.*\|\r?\n)+", table_add_header, markdown_text, flags = re.M) # add the colspec line to a line block
+    if True:
+        # this isn't necessary for 
+        markdown_text = re.sub(r"(^\|.*\|\r?\n)+", table_add_header, markdown_text, flags = re.M) # add the colspec line to a line block
 
 
     # Remove any remaining WikidPad syntax
@@ -252,20 +268,28 @@ def WriteConfluencePage( space, title, parent_id = None, overwrite = True, body_
     assert _CONFLUENCE_CONNECTION
     pg = _CONFLUENCE_CONNECTION.get_page_by_title( space = space, title = title)
 
+    representation = "wiki"
+    body_source = body_markdown
+    if ConfluenceRenderer and mistune:
+        renderer = ConfluenceRenderer(use_xhtml=True)
+        confluence_mistune = mistune.Markdown(renderer=renderer)
+        body_source = confluence_mistune(body_markdown)
+        representation = "storage"
+
     if pg and overwrite:
         data =  _CONFLUENCE_CONNECTION.update_existing_page( 
             page_id = pg["id"], 
             title = pg["title"], 
-            representation = "wiki",
-            body = body_markdown, 
+            representation = representation,
+            body = body_source, 
         )
     else:
         data = _CONFLUENCE_CONNECTION.create_page( 
             space = space, 
             title = title, 
             parent_id = parent_id, 
-            representation = "wiki", 
-            body = body_markdown,
+            representation = representation, 
+            body = body_source,
         )
     return data["_links"]["base"] + data["_links"]["webui"]
 
@@ -360,7 +384,7 @@ if __name__ == '__main__':
     logging.info("=" * 40)
     logging.info("Working in %s", os.getcwd())
     try:
-        if True:
+        if False:
             RunMain( 
                 verify = "_sample_pages",
                 render  = True,
