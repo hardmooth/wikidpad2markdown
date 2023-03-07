@@ -2,9 +2,9 @@
 Transforms wikidpad pages to markdown syntax. Also planned to upload pages to confluence cloud.
 
 [wikidPad](https://wikidpad.sourceforge.net/) is an open source wiki-like notebook. 
-As it is not actively developed since 2018 this script helps to migrate to other wiki tools using [Markdown](https://markdown.de/)
+As it is not actively developed since 2018 this script helps to migrate to other wiki tools (i.e. Confluence) using [Markdown](https://markdown.de/)
 
-> :warning: **This project has just been started and is not usable yet.**
+> :warning: **This project has just been started and has not been tested on real life wikis.**
 
 ## Usage
 
