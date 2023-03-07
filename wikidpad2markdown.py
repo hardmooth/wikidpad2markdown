@@ -368,7 +368,7 @@ def RunMain( options = None,
             page_url = WriteConfluencePage( 
                 space = options.ConfluenceSpace, 
                 title = title, 
-                parent_id = None, 
+                parent_id = options.ConfluenceParentID, 
                 overwrite = True, 
                 body_markdown = markdown_content
             )
