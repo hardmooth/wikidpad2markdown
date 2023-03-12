@@ -1,13 +1,22 @@
 # wikidpad2markdown
-Transforms wikidpad pages to markdown syntax. Also planned to upload pages to confluence cloud.
+
+Transforms wikidpad pages to markdown syntax. Optionally uploads as separate pages to Confluence (cloud).
 
 [wikidPad](https://wikidpad.sourceforge.net/) is an open source wiki-like notebook. 
 As it is not actively developed since 2018 this script helps to migrate to other wiki tools (i.e. Confluence) using [Markdown](https://markdown.de/)
 
 ## Notes
 
+ * still a 90% solution - tested on production and translates most of the stuff, yet not everything (no full syntax, no page tree structure, no linked pages)
  * Will escape HTML characters and entities in markdown (or will break confluence)
  * Will replace "%2F" by "/" in filenames when uploading to confluence (those are escaped "/" anyway)
+
+## Setup
+
+ 1. install python (tested with 3.10)
+ 1. install python requirements
+    pip install -r requirements.txt
+ 1. clone this repository and point to your files (and optionally confluence instance)
 
 ## Usage
 
