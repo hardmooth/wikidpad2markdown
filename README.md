@@ -4,7 +4,10 @@ Transforms wikidpad pages to markdown syntax. Also planned to upload pages to co
 [wikidPad](https://wikidpad.sourceforge.net/) is an open source wiki-like notebook. 
 As it is not actively developed since 2018 this script helps to migrate to other wiki tools (i.e. Confluence) using [Markdown](https://markdown.de/)
 
-> :warning: **This project has just been started and has not been tested on real life wikis.**
+## Notes
+
+ * Will escape HTML characters and entities in markdown (or will break confluence)
+ * Will replace "%2F" by "/" in filenames when uploading to confluence (those are escaped "/" anyway)
 
 ## Usage
 
@@ -20,12 +23,16 @@ You can store the above line in a `build_custom.cmd`, which is already ignored.
 
 other options are:
 
-        Options:
+    Usage: wikidpad2markdown.py [options]
+    
+    Options:
       -h, --help            show this help message and exit
       -w WIKIDPAD_FILES, --wikidpad=WIKIDPAD_FILES
                             Input Wikidpad files (may be globular expression)
       -o OUTPUT_DIR, --out=OUTPUT_DIR
                             Output directory for generated Markdown files
+      -u, --update          Should already existing/processed files be
+                            updated/overwritten (default: skip)
       -V VERIFY, --verify=VERIFY
                             Verify created Markdown files against those in the
                             given directly (for each'file.wiki' there must be
@@ -42,4 +49,4 @@ other options are:
       --confluence-token=CONFLUENCEAPITOKEN
                             Confluence upload: Confluence API Token
       -s, --strict          Abort on the first error (or keep going?).
-
+  

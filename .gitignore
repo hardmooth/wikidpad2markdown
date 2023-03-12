@@ -1,4 +1,8 @@
+#
 credentials.py
+build_*.cmd # custom build scripts will normally hold credentials
+
+
 # -----------------------------
 # -- automatically generated --
 # Byte-compiled / optimized / DLL files

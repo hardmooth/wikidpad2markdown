@@ -8,6 +8,7 @@ script to migrate from wikidpad to markdown (and possibly upload to confluence)
 # -- python standard imports ---
 import difflib
 import glob
+import html
 import logging
 import os
 import re
@@ -78,6 +79,8 @@ def ParseOptions( options = None, args = None, **kwargs):
     parser.add_option("-w", "--wikidpad", dest="wikidpad_files", help="Input Wikidpad files (may be globular expression)", default="_sample_pages/*.wiki")
     parser.add_option("-o", "--out",      dest="output_dir",    help="Output directory for generated Markdown files", default="out")
 
+    parser.add_option("-u", "--update", dest="update", action="store_true", default="False", help="Should already existing/processed files be updated/overwritten (default: skip)")
+
     parser.add_option("-V", "--verify", dest="verify", action="store", default=None, help="Verify created Markdown files against those in the given directly (for each'file.wiki' there must be 'file.md'")
     parser.add_option("-R", "--render", dest="render", action="store_true", default="False", help="Render transformed files to HTML as well.")
 
@@ -88,7 +91,7 @@ def ParseOptions( options = None, args = None, **kwargs):
     parser.add_option("--confluence-token", dest="ConfluenceAPIToken", action="store", help = "Confluence upload: Confluence API Token")
 
     # TODO: disable
-    parser.add_option("-s", "--strict", dest="Strict", action="store_true", default=True, help="Abort on the first error (or keep going?).")
+    parser.add_option("-s", "--strict", dest="Strict", action="store_true", default=False, help="Abort on the first error (or keep going?).")
 
     ##################################################################################
     # adapt set parameters according to passed arguments, e.g. when used as a module #
@@ -252,7 +255,7 @@ def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
 
     return markdown_text
 
-def WriteConfluencePage( space, title, parent_id = None, overwrite = True, body_markdown = ""):
+def WriteConfluencePage( space, title, parent_id = None, overwrite = True, body_markdown = "", fallback_wiki = False):
     """Writes a confluence page
 
     Args:
@@ -266,15 +269,27 @@ def WriteConfluencePage( space, title, parent_id = None, overwrite = True, body_
         str: URL to created page
     """
     assert _CONFLUENCE_CONNECTION
+
+    title = title.replace("%2F", "/")
+
     pg = _CONFLUENCE_CONNECTION.get_page_by_title( space = space, title = title)
 
     representation = "wiki"
     body_source = body_markdown
     if ConfluenceRenderer and mistune:
-        renderer = ConfluenceRenderer(use_xhtml=True)
-        confluence_mistune = mistune.Markdown(renderer=renderer)
-        body_source = confluence_mistune(body_markdown)
-        representation = "storage"
+        try:
+            renderer = ConfluenceRenderer(use_xhtml=True)
+            confluence_mistune = mistune.Markdown(renderer=renderer)
+            # escape HTML (or Confluence XHTML might break) and then to Confluence XHTML
+            body_source = confluence_mistune(html.escape(body_markdown))
+            representation = "storage"
+        except Exception as exc:
+            logging.error(f"Error during markdown->confluence for {title}: {exc}")
+            if fallback_wiki:
+                representation = "wiki"
+                body_source = body_markdown
+            else:
+                raise
 
     if pg and overwrite:
         data =  _CONFLUENCE_CONNECTION.update_existing_page( 
@@ -317,6 +332,18 @@ def RunMain( options = None,
     for _file in wiki_files:
         logging.debug("parsing %s", _file)
 
+        fname = os.path.basename( _file)
+        title = os.path.splitext(fname)[0]
+        target_path = os.path.join( options.output_dir, f"{title}.md")
+
+        if os.path.exists( target_path):
+            action = 'Updating/Overwriting' if options.update else 'skipping'
+            logging.info(f"File {_file} already processed / target already existing. {action}.")
+            if not options.update:
+                # skip
+                continue
+
+
         with open( _file, "r", encoding = "utf8") as fh:
             wiki_content = fh.read()
 
@@ -324,9 +351,6 @@ def RunMain( options = None,
         markdown_content = Wikidpad2Markdown( wiki_content, remove_remaining_wikidpad=False)
 
         # write out file
-        fname = os.path.basename( _file)
-        title = fname.rstrip(".wiki")
-        target_path = os.path.join( options.output_dir, f"{title}.md")
         logging.debug("writing %s", target_path)
         with open( target_path, "w", encoding = "utf8") as fh_out:
             fh_out.write( markdown_content)
@@ -365,20 +389,24 @@ def RunMain( options = None,
 
         # write to confluence
         if options.ConfluenceURL:
-            page_url = WriteConfluencePage( 
-                space = options.ConfluenceSpace, 
-                title = title, 
-                parent_id = options.ConfluenceParentID, 
-                overwrite = True, 
-                body_markdown = markdown_content
-            )
-            logging.info( "Confluence Upload: %s -> %s", _file, page_url)
+            try:
+                page_url = WriteConfluencePage( 
+                    space = options.ConfluenceSpace, 
+                    title = title, 
+                    parent_id = options.ConfluenceParentID, 
+                    overwrite = options.update, 
+                    body_markdown = markdown_content,
+                    fallback_wiki = not options.Strict,
+                )
+                logging.info( "Confluence Upload: %s -> %s", _file, page_url)
+            except Exception as exc:
+                logging.error(f"Unable to write {title} to confluence: {exc}")
+                if options.Strict:
+                    raise
         
     logging.info("done.")
 
 if __name__ == '__main__':
-    if False:
-        input("Connect to debugger?")
     loggingSetup( LOG_FILE)
     logging.info("== wikidpad to markdown transformer ==")
     logging.info("=" * 40)
