@@ -59,3 +59,16 @@ other options are:
                             Confluence upload: Confluence API Token
       -s, --strict          Abort on the first error (or keep going?).
   
+## Tests
+
+Unit Tests are done using [Pytest](https://docs.pytest.org/).
+
+### Running Tests
+
+Tests are (not yet) run automatically, but can be run manually via::
+    
+    pytest
+
+### Writing Tests
+
+Simply add other pytest tests in `tests/` as of the [Pytest docs](https://docs.pytest.org/).
