@@ -14,9 +14,11 @@ As it is not actively developed since 2018 this script helps to migrate to other
 ## Setup
 
  1. install python (tested with 3.10)
- 1. install python requirements
-    pip install -r requirements.txt
  1. clone this repository and point to your files (and optionally confluence instance)
+ 1. install python requirements
+    
+        pip install -r requirements.txt
+ 1. point to your files (and confluence instance) by copying and editing `build_upload_template.cmd`
 
 ## Usage
 
@@ -28,7 +30,8 @@ to also upload the generated page to confluence use it like (insert your data):
 
     python wikidpad2markdown.py --wikidpad=_sample_pages/*.wiki --out=out --strict --confluence-url=https://<your_atlassian_instance>.atlassian.net/wiki --confluence-token=<your_confluence_cloud_API_token> --confluence-parent-id=<optional_confluence_parent_page_id> --confluence-user=<your_atlassian_user_email> --confluence-space=<target_space_key>
 
-You can store the above line in a `build_custom.cmd`, which is already ignored.
+You can store the above line in a `build_custom.cmd`, which is already ignored.<br>
+An example file `build_upload_template.cmd` is supplied.
 
 other options are:
 
