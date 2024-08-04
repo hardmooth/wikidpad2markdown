@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 script to migrate from wikidpad to markdown (and possibly upload to confluence)
+see README.md for usage
+
 @copyright:   Hartmut Leister, 2023, all rights reserved
 @author: Hartmut Leister <hartmut.leister@gmail.com>
 """
@@ -133,6 +135,19 @@ def ParseOptions( options = None, args = None, **kwargs):
     return options, args
 
 def diff_texts(text1, text2, title1 = "A", title2 = "B", skip_equal = True, ignore_whitespacing = False):
+    """does a diff of two texts and returns a text summary of differing/changed lines
+
+    Args:
+        text1 (_type_): first text
+        text2 (_type_): second text
+        title1 (str, optional): Title of the first text. Defaults to "A".
+        title2 (str, optional): Title of the second text. Defaults to "B".
+        skip_equal (bool, optional): Should equal lines be skipped? Defaults to True.
+        ignore_whitespacing (bool, optional): Should whitespace changes be ignored? Defaults to False. (Will actually collapse all white spaces - also in output)
+
+    Returns:
+        str: Text summary of changes
+    """
     lines1 = text1.splitlines() if isinstance( text1, str) else text1
     lines2 = text2.splitlines() if isinstance( text2, str) else text2
 
@@ -187,13 +202,14 @@ def diff_texts(text1, text2, title1 = "A", title2 = "B", skip_equal = True, igno
 
 def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
     """Converts Wikidpad to Markdown syntax.
-    Generated from conversation with ChatGPT
+    Handles most cases (at least those used by the author)
 
     Args:
-        wiki_source (_type_): _description_
+        wiki_source (str): wikidpad source as multiline text
+        remove_remaining_wikidpad (bool): Should remaining/non-translated wikidpad syntax be removed? Defaults to True.
 
     Returns:
-        _type_: _description_
+        str: source translated to markdown version
     """
     def table_add_header( table_block_match):
         table_source = table_block_match.group(0)
@@ -225,9 +241,6 @@ def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
     markdown_text = re.sub(r'^(\*+)\s+(.*)$', r'\1 \2', markdown_text, flags=re.MULTILINE)
 
     # Replace ordered and unordered lists
-    ##markdown_text = re.sub(r"^\s*\* (.+)$", r"* \1", markdown_text, flags=re.MULTILINE)
-    ##markdown_text = re.sub(r"^\s*\d+\. (.+)$", r"1. \1", markdown_text, flags=re.MULTILINE)
-    ##markdown_text = re.sub(r"^\s+[\*\d]", lambda match: " " * 4 + match.group(0), markdown_text, flags=re.MULTILINE)
     markdown_text = re.sub(r"^(\s+)([\*\d])", lambda match: " " * (2 * len(match.group(1))//4 - 1) + match.group(2), markdown_text, flags=re.MULTILINE)
 
     # Replace horizontal lines
@@ -236,10 +249,7 @@ def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
     # Replace tables
     markdown_text = re.sub(r"^(<<\|\s*|>>\s*)\n", r"", markdown_text, flags = re.MULTILINE) # table frame <<| and >>
     markdown_text = re.sub(r"^(.*\|.*\|.*)$", lambda match: "| " + " | ".join( elem.strip() for elem in match.group(0).split("|")) + " |", markdown_text, flags = re.MULTILINE) # cell delimiters: | elem1 | elem2 |
-    if True:
-        # this isn't necessary for 
-        markdown_text = re.sub(r"(^\|.*\|\r?\n)+", table_add_header, markdown_text, flags = re.M) # add the colspec line to a line block
-
+    markdown_text = re.sub(r"(^\|.*\|\r?\n)+", table_add_header, markdown_text, flags = re.M) # add the colspec line to a line block
 
     # Remove any remaining WikidPad syntax
     if remove_remaining_wikidpad:
@@ -256,14 +266,16 @@ def Wikidpad2Markdown(wiki_source, remove_remaining_wikidpad = True):
     return markdown_text
 
 def WriteConfluencePage( space, title, parent_id = None, overwrite = True, body_markdown = "", fallback_wiki = False):
-    """Writes a confluence page
+    """Writes (creates/overwrites) a confluence page.
+
+    requires _CONFLUENCE_CONNECTION to be set (done, if executed with valid --confluence-user and --confluence-token)
 
     Args:
-        space (_type_): _description_
-        title (_type_): _description_
-        parent_id (_type_, optional): _description_. Defaults to None.
-        overwrite (bool, optional): _description_. Defaults to True.
-        body_markdown (str, optional): _description_. Defaults to "".
+        space (str): Key of target confluence space.
+        title (str): Title of page to be written.
+        parent_id (int|Nonetype, optional): ID of parent page. Defaults to None -- will be created directly in space.
+        overwrite (bool, optional): Should existing pages be overwritten (True) or just skipped (False). Defaults to True.
+        body_markdown (str, optional): Page body as markdown. Defaults to "".
 
     Returns:
         str: URL to created page
@@ -311,7 +323,15 @@ def WriteConfluencePage( space, title, parent_id = None, overwrite = True, body_
 def RunMain( options = None,
              args    = None,
              **kwargs):
-    u"""
+    """Executes the script for wikidpad to markdown.
+    Has two modes:
+        * command line execution (options and args are None): Read from command line as of ParseOptions
+        * module execution (not used here yet, but maybe for testing): use supplied options and args
+    both are evaluated in ParseOptions
+
+    Args:
+        options (dict|NoneType, optional): optional options. If omitted retrieved via CMD. Defaults to None.
+        args (list|NoneType, optional): optional command line args. If omitted retrieved via CMD. Defaults to None.
     """
     
     if args is None:

@@ -1,4 +1,7 @@
 """Unit Tests for wikidpad2markdown using pytest
+execute via::
+
+    pytest
 """
 
 from pathlib import Path
@@ -8,6 +11,7 @@ from wikidpad2markdown import Wikidpad2Markdown
 
 def test_formatter_from_sample_pages():
     """Does a markdown transform test of _sample_pages/main.wiki against _sample_pages/main.md
+    (whitespace changes at top and end are omitted)
     """
     wiki_path = Path( "./_sample_pages/main.wiki")
     md_path   = Path( "./_sample_pages/main.md")
